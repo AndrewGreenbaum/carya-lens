@@ -1,10 +1,12 @@
 /**
  * Badge Component
+ * Dark theme matching Carya Eagle Eye frontend
  */
 
 import React from 'react';
+import { CARYA_COLORS } from './Card';
 
-export type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info';
+export type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'seed';
 
 export interface BadgeProps {
   children: React.ReactNode;
@@ -13,21 +15,49 @@ export interface BadgeProps {
 }
 
 export function Badge({ children, variant = 'default', style }: BadgeProps) {
+  // Dark theme badge styles matching Carya Eagle Eye
   const variantStyles: Record<BadgeVariant, React.CSSProperties> = {
-    default: { backgroundColor: '#f3f4f6', color: '#374151' },
-    success: { backgroundColor: '#dcfce7', color: '#166534' },
-    warning: { backgroundColor: '#fef3c7', color: '#92400e' },
-    error: { backgroundColor: '#fee2e2', color: '#991b1b' },
-    info: { backgroundColor: '#dbeafe', color: '#1e40af' },
+    default: {
+      backgroundColor: CARYA_COLORS.badgeBg,
+      color: CARYA_COLORS.badgeText,
+      border: `1px solid ${CARYA_COLORS.badgeText}40`,
+    },
+    success: {
+      backgroundColor: 'rgba(63, 185, 80, 0.15)',
+      color: '#3fb950',
+      border: '1px solid rgba(63, 185, 80, 0.4)',
+    },
+    warning: {
+      backgroundColor: 'rgba(210, 153, 34, 0.15)',
+      color: '#d29922',
+      border: '1px solid rgba(210, 153, 34, 0.4)',
+    },
+    error: {
+      backgroundColor: 'rgba(248, 81, 73, 0.15)',
+      color: '#f85149',
+      border: '1px solid rgba(248, 81, 73, 0.4)',
+    },
+    info: {
+      backgroundColor: CARYA_COLORS.badgeBg,
+      color: CARYA_COLORS.badgeText,
+      border: `1px solid ${CARYA_COLORS.badgeText}40`,
+    },
+    seed: {
+      backgroundColor: CARYA_COLORS.seedBadgeBg,
+      color: CARYA_COLORS.seedBadgeText,
+      border: `1px solid ${CARYA_COLORS.seedBadgeText}40`,
+    },
   };
 
   const baseStyles: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
-    padding: '2px 8px',
-    borderRadius: '9999px',
-    fontSize: '11px',
-    fontWeight: 500,
+    padding: '3px 10px',
+    borderRadius: '4px',
+    fontSize: '10px',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
     ...variantStyles[variant],
     ...style,
   };

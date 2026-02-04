@@ -2,16 +2,20 @@
  * Tracker Message Handler
  *
  * Handles tracker operations (add, check status, move).
+ * Uses real backend API endpoints:
+ * - POST /tracker/from-deal (when deal_id available)
+ * - POST /tracker (for manual entries)
  */
 
 import type { TrackerItem, TrackerStatus } from '@/types/tracker';
 import type { ExtensionMessage, MessageResponse, TrackerStatusResponse } from '@/types/messages';
-import { addToTracker, checkTrackerStatus, moveTrackerStatus } from '@/services/api/tracker';
+import { addToTracker, addDealToTracker, checkTrackerStatus, moveTrackerStatus } from '@/services/api/tracker';
 import { cache } from '@/services/cache/storage';
 import { logger } from '@/utils/logger';
 
 export interface AddToTrackerPayload {
   companyName: string;
+  dealId?: string;
   website?: string;
   founderLinkedIn?: string;
   notes?: string;
@@ -28,6 +32,7 @@ export interface MoveTrackerPayload {
 
 /**
  * Handle add to tracker request
+ * Uses /tracker/from-deal if dealId available, otherwise /tracker
  */
 export async function handleAddToTracker(
   message: ExtensionMessage<AddToTrackerPayload>
@@ -42,27 +47,75 @@ export async function handleAddToTracker(
     };
   }
 
-  logger.info('Adding to tracker', { companyName: payload.companyName });
+  logger.info('Adding to tracker', {
+    companyName: payload.companyName,
+    dealId: payload.dealId,
+    hasDealId: !!payload.dealId,
+  });
 
   try {
-    const result = await addToTracker(payload);
+    let result;
+
+    // Prefer using deal_id if available (links to existing deal in database)
+    if (payload.dealId) {
+      logger.info('Using /tracker/from-deal endpoint', { dealId: payload.dealId });
+      result = await addDealToTracker(payload.dealId);
+    } else {
+      logger.info('Using /tracker endpoint (manual entry)', { companyName: payload.companyName });
+      result = await addToTracker(payload);
+    }
+
+    logger.info('Add to tracker API result', {
+      success: result.success,
+      error: result.error,
+      hasData: !!result.data,
+    });
 
     if (result.success && result.data) {
       // Invalidate tracker status cache
       const cacheKey = `tracker:${payload.companyName.toLowerCase()}`;
       await cache.remove(cacheKey);
 
-      logger.info('Added to tracker', { companyName: payload.companyName });
+      logger.info('Successfully added to tracker', {
+        companyName: payload.companyName,
+        trackerId: result.data.id,
+      });
+
+      // Map API response to our TrackerItem type
+      const trackerItem: TrackerItem = {
+        id: String(result.data.id),
+        companyName: result.data.company_name,
+        linkedInUrl: payload.founderLinkedIn,
+        status: result.data.status as TrackerStatus,
+        addedAt: result.data.created_at,
+        updatedAt: result.data.updated_at,
+      };
 
       return {
         success: true,
-        data: result.data,
+        data: trackerItem,
       };
     } else {
-      logger.warn('Failed to add to tracker', { companyName: payload.companyName });
+      logger.warn('Failed to add to tracker', {
+        companyName: payload.companyName,
+        error: result.error,
+        errorType: (result as { errorType?: string }).errorType,
+      });
+
+      // Include error type for better client-side messaging
+      const errorType = (result as { errorType?: string }).errorType;
+      let errorMessage = result.error || 'Failed to add to tracker';
+
+      // Provide helpful messages for common errors
+      if (errorType === 'INVALID_API_KEY' || errorMessage.includes('401')) {
+        errorMessage = 'Invalid API key - check settings';
+      } else if (errorType === 'NO_API_KEY') {
+        errorMessage = 'API key required for tracker';
+      }
+
       return {
         success: false,
-        error: result.error || 'Failed to add to tracker',
+        error: errorMessage,
       };
     }
   } catch (error) {

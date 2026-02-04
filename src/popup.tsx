@@ -2,6 +2,7 @@
  * Extension Popup
  *
  * Settings UI for Carya Lens Chrome Extension.
+ * Features: Settings, Connection Test, Deal Search
  * Every user action is logged with [Carya] [Popup] prefix.
  * No silent failures - all errors are logged and surfaced.
  */
@@ -29,6 +30,23 @@ interface ConnectionStatus {
   latency?: number;
 }
 
+// Deal search result type
+interface SearchResult {
+  id: string;
+  companyName: string;
+  fundingAmount: number;
+  roundStage: string;
+  leadInvestor?: string;
+}
+
+// Format currency for display
+const formatCurrency = (amount: number): string => {
+  if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(1)}B`;
+  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
+  return `$${amount}`;
+};
+
 function IndexPopup() {
   // State - default to 'production' so extension works immediately
   const [apiKey, setApiKey] = React.useState<string>('');
@@ -40,6 +58,13 @@ function IndexPopup() {
     status: 'idle',
     message: 'Not tested',
   });
+
+  // Search state
+  const [searchQuery, setSearchQuery] = React.useState<string>('');
+  const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = React.useState(false);
+  const [searchError, setSearchError] = React.useState<string | null>(null);
+  const [activeTab, setActiveTab] = React.useState<'search' | 'settings'>('search');
 
   // Load saved settings on mount
   React.useEffect(() => {
@@ -177,15 +202,8 @@ function IndexPopup() {
       return;
     }
 
-    // Check for API key
-    if (!apiKey) {
-      log('warn', 'Test connection failed - no API key');
-      setConnectionStatus({
-        status: 'error',
-        message: 'API key required for non-mock environments',
-      });
-      return;
-    }
+    // Note: Deal lookup doesn't require API key, but tracker does
+    // We'll test connection without API key requirement
 
     // Send health check request to background worker
     const startTime = Date.now();
@@ -246,40 +264,290 @@ function IndexPopup() {
     }
   };
 
+  // Handle search
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      log('warn', 'Search attempted with empty query');
+      return;
+    }
+
+    log('info', 'Search initiated', { query: searchQuery });
+    setIsSearching(true);
+    setSearchError(null);
+    setSearchResults([]);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'LOOKUP_DEAL',
+        payload: { query: searchQuery.trim() },
+      });
+
+      if (chrome.runtime.lastError) {
+        log('error', 'Search runtime error', { error: chrome.runtime.lastError.message });
+        setSearchError(chrome.runtime.lastError.message || 'Search failed');
+        return;
+      }
+
+      log('info', 'Search response received', response);
+
+      if (response?.success && response.data) {
+        // Single result from lookup
+        const result: SearchResult = {
+          id: response.data.id,
+          companyName: response.data.companyName,
+          fundingAmount: response.data.fundingAmount,
+          roundStage: response.data.roundStage,
+          leadInvestor: response.data.leadInvestor?.name,
+        };
+        setSearchResults([result]);
+        log('info', 'Search found result', { companyName: result.companyName });
+      } else if (response?.success && !response.data) {
+        log('info', 'Search returned no results', { query: searchQuery });
+        setSearchResults([]);
+      } else {
+        log('warn', 'Search failed', { error: response?.error });
+        setSearchError(response?.error || 'Search failed');
+      }
+    } catch (err) {
+      log('error', 'Search exception', { error: err instanceof Error ? err.message : String(err) });
+      setSearchError('Search failed');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Handle opening LinkedIn company page
+  const handleOpenLinkedIn = (companyName: string) => {
+    log('info', 'Opening LinkedIn for company', { companyName });
+    const linkedInUrl = `https://www.linkedin.com/company/${encodeURIComponent(companyName.toLowerCase().replace(/\s+/g, '-'))}`;
+    chrome.tabs.create({ url: linkedInUrl });
+  };
+
+  // Handle search input keypress
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
   return (
     <div
       style={{
-        width: '320px',
-        padding: '20px',
+        width: '340px',
+        padding: '16px',
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
-      {/* Header */}
-      <h1 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 'bold' }}>
-        Carya Lens
-      </h1>
-      <div style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
-        Deal intelligence overlay for LinkedIn
+      {/* Header with logo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="11" fill="#2563eb" stroke="#1d4ed8" strokeWidth="1"/>
+          <text x="12" y="16" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold" fontFamily="system-ui">C</text>
+        </svg>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Carya Lens</h1>
+          <div style={{ fontSize: '11px', color: '#666' }}>Deal intelligence for LinkedIn</div>
+        </div>
       </div>
 
-      {/* Extension Status */}
-      <div
-        style={{
-          padding: '10px 12px',
-          backgroundColor: '#f5f5f5',
-          borderRadius: '6px',
-          fontSize: '13px',
-          marginBottom: '20px',
-        }}
-      >
-        <strong>Extension:</strong> {extensionStatus}
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px' }}>
+        <button
+          onClick={() => setActiveTab('search')}
+          style={{
+            padding: '8px 16px',
+            fontSize: '13px',
+            fontWeight: 500,
+            border: 'none',
+            borderRadius: '6px 6px 0 0',
+            cursor: 'pointer',
+            backgroundColor: activeTab === 'search' ? '#2563eb' : 'transparent',
+            color: activeTab === 'search' ? 'white' : '#6b7280',
+            transition: 'all 0.2s',
+          }}
+        >
+          🔍 Search
+        </button>
+        <button
+          onClick={() => setActiveTab('settings')}
+          style={{
+            padding: '8px 16px',
+            fontSize: '13px',
+            fontWeight: 500,
+            border: 'none',
+            borderRadius: '6px 6px 0 0',
+            cursor: 'pointer',
+            backgroundColor: activeTab === 'settings' ? '#2563eb' : 'transparent',
+            color: activeTab === 'settings' ? 'white' : '#6b7280',
+            transition: 'all 0.2s',
+          }}
+        >
+          ⚙️ Settings
+        </button>
       </div>
 
-      {/* Settings Section */}
-      <div style={{ marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 12px 0' }}>
-          API Settings
-        </h2>
+      {/* Search Tab */}
+      {activeTab === 'search' && (
+        <div>
+          {/* Search Input */}
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
+                placeholder="Search company or founder..."
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  fontSize: '13px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleSearch}
+                disabled={isSearching || !searchQuery.trim()}
+                style={{
+                  padding: '10px 16px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: 'white',
+                  backgroundColor: isSearching ? '#9ca3af' : '#2563eb',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: isSearching ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSearching ? '...' : 'Search'}
+              </button>
+            </div>
+          </div>
+
+          {/* Search Results */}
+          {searchError && (
+            <div style={{
+              padding: '10px 12px',
+              backgroundColor: '#fee2e2',
+              color: '#991b1b',
+              borderRadius: '6px',
+              fontSize: '13px',
+              marginBottom: '12px',
+            }}>
+              {searchError}
+            </div>
+          )}
+
+          {searchResults.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Results
+              </div>
+              {searchResults.map((result) => (
+                <div
+                  key={result.id}
+                  onClick={() => handleOpenLinkedIn(result.companyName)}
+                  style={{
+                    padding: '12px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    marginBottom: '8px',
+                    cursor: 'pointer',
+                    border: '1px solid #e5e7eb',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                    e.currentTarget.style.borderColor = '#e5e7eb';
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: '#111827' }}>
+                        {result.companyName}
+                      </div>
+                      {result.leadInvestor && (
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                          Lead: {result.leadInvestor}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#059669' }}>
+                        {formatCurrency(result.fundingAmount)}
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        padding: '2px 6px',
+                        backgroundColor: '#dbeafe',
+                        color: '#1e40af',
+                        borderRadius: '4px',
+                        display: 'inline-block',
+                        marginTop: '2px',
+                      }}>
+                        {result.roundStage}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '8px' }}>
+                    Click to open LinkedIn →
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!isSearching && searchQuery && searchResults.length === 0 && !searchError && (
+            <div style={{
+              padding: '20px',
+              textAlign: 'center',
+              color: '#6b7280',
+              fontSize: '13px',
+            }}>
+              No results found for "{searchQuery}"
+            </div>
+          )}
+
+          {!searchQuery && (
+            <div style={{
+              padding: '20px',
+              textAlign: 'center',
+              color: '#9ca3af',
+              fontSize: '13px',
+            }}>
+              Enter a company or founder name to search
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div>
+          {/* Extension Status */}
+          <div
+            style={{
+              padding: '10px 12px',
+              backgroundColor: '#f5f5f5',
+              borderRadius: '6px',
+              fontSize: '13px',
+              marginBottom: '16px',
+            }}
+          >
+            <strong>Extension:</strong> {extensionStatus}
+          </div>
+
+          {/* Settings Section */}
+          <div style={{ marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 12px 0' }}>
+              API Settings
+            </h2>
 
         {/* Environment Dropdown */}
         <div style={{ marginBottom: '12px' }}>
@@ -324,7 +592,7 @@ function IndexPopup() {
               color: '#374151',
             }}
           >
-            API Key {environment === 'mock' && <span style={{ color: '#9ca3af' }}>(optional in mock mode)</span>}
+            API Key
           </label>
           <input
             type="password"
@@ -340,6 +608,17 @@ function IndexPopup() {
               boxSizing: 'border-box',
             }}
           />
+          <div style={{
+            fontSize: '11px',
+            color: '#6b7280',
+            marginTop: '4px',
+          }}>
+            {environment === 'mock' ? (
+              'Optional in mock mode'
+            ) : (
+              <>Required for <strong>Add to Tracker</strong> feature. Deal lookup works without key.</>
+            )}
+          </div>
         </div>
 
         {/* Save Button */}
@@ -393,30 +672,32 @@ function IndexPopup() {
         >
           {connectionStatus.status === 'testing' ? 'Testing...' : 'Test Connection'}
         </button>
-      </div>
+          </div>
 
-      {/* Connection Status */}
-      <div
-        style={{
-          padding: '10px 12px',
-          backgroundColor: '#f9fafb',
-          borderRadius: '6px',
-          borderLeft: `3px solid ${getConnectionStatusColor()}`,
-          marginBottom: '16px',
-        }}
-      >
-        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
-          Connection Status
+          {/* Connection Status */}
+          <div
+            style={{
+              padding: '10px 12px',
+              backgroundColor: '#f9fafb',
+              borderRadius: '6px',
+              borderLeft: `3px solid ${getConnectionStatusColor()}`,
+              marginBottom: '12px',
+            }}
+          >
+            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
+              Connection Status
+            </div>
+            <div style={{ fontSize: '13px', fontWeight: '500' }}>
+              {connectionStatus.message}
+              {connectionStatus.latency && (
+                <span style={{ color: '#9ca3af', fontWeight: 'normal' }}>
+                  {' '}({connectionStatus.latency}ms)
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: '13px', fontWeight: '500' }}>
-          {connectionStatus.message}
-          {connectionStatus.latency && (
-            <span style={{ color: '#9ca3af', fontWeight: 'normal' }}>
-              {' '}({connectionStatus.latency}ms)
-            </span>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Footer */}
       <div
@@ -426,6 +707,7 @@ function IndexPopup() {
           textAlign: 'center',
           borderTop: '1px solid #e5e7eb',
           paddingTop: '12px',
+          marginTop: '12px',
         }}
       >
         v{chrome.runtime.getManifest().version} • {environment} mode

@@ -124,7 +124,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       hasApiKey: !!settings.apiKey,
     });
   } catch (error) {
-    log('error', 'Failed to load settings on install', { error });
+    log('error', 'Failed to load settings on install', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+    });
   }
 });
 
@@ -140,7 +143,10 @@ chrome.runtime.onStartup.addListener(async () => {
       hasApiKey: !!settings.apiKey,
     });
   } catch (error) {
-    log('error', 'Failed to load settings on startup', { error });
+    log('error', 'Failed to load settings on startup', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+    });
   }
 });
 
@@ -154,7 +160,10 @@ chrome.runtime.onStartup.addListener(async () => {
       hasApiKey: !!settings.apiKey,
     });
   } catch (error) {
-    log('error', 'Failed to load settings on script load', { error });
+    log('error', 'Failed to load settings on script load', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+    });
   }
 })();
 

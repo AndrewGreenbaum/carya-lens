@@ -1,8 +1,10 @@
 /**
  * Button Component
+ * Dark theme matching Carya Eagle Eye frontend
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { CARYA_COLORS } from './Card';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -14,6 +16,20 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   children: React.ReactNode;
 }
 
+// Loading spinner component
+const Spinner = () => (
+  <span style={{
+    display: 'inline-block',
+    width: '12px',
+    height: '12px',
+    border: '2px solid currentColor',
+    borderTopColor: 'transparent',
+    borderRadius: '50%',
+    animation: 'spin 0.6s linear infinite',
+    marginRight: '6px',
+  }} />
+);
+
 export function Button({
   variant = 'primary',
   size = 'md',
@@ -24,6 +40,8 @@ export function Button({
   onClick,
   ...props
 }: ButtonProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
   const baseStyles: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -32,21 +50,34 @@ export function Button({
     borderRadius: '6px',
     border: 'none',
     cursor: disabled || loading ? 'not-allowed' : 'pointer',
-    opacity: disabled || loading ? 0.5 : 1,
-    transition: 'background-color 0.2s, opacity 0.2s',
+    opacity: disabled || loading ? 0.6 : 1,
+    transition: 'all 0.2s ease',
   };
 
   const variantStyles: Record<ButtonVariant, React.CSSProperties> = {
-    primary: { backgroundColor: '#2563eb', color: 'white' },
-    secondary: { backgroundColor: '#f3f4f6', color: '#1f2937' },
-    ghost: { backgroundColor: 'transparent', color: '#4b5563' },
-    danger: { backgroundColor: '#dc2626', color: 'white' },
+    primary: {
+      backgroundColor: isHovered ? CARYA_COLORS.accentHover : CARYA_COLORS.accent,
+      color: '#000',
+    },
+    secondary: {
+      backgroundColor: isHovered ? CARYA_COLORS.cardBackgroundHover : CARYA_COLORS.cardBackground,
+      color: CARYA_COLORS.textPrimary,
+      border: `1px solid ${CARYA_COLORS.border}`,
+    },
+    ghost: {
+      backgroundColor: isHovered ? CARYA_COLORS.cardBackgroundHover : 'transparent',
+      color: CARYA_COLORS.textSecondary,
+    },
+    danger: {
+      backgroundColor: isHovered ? '#da3633' : CARYA_COLORS.error,
+      color: 'white',
+    },
   };
 
   const sizeStyles: Record<ButtonSize, React.CSSProperties> = {
-    sm: { padding: '4px 8px', fontSize: '12px' },
-    md: { padding: '6px 12px', fontSize: '13px' },
-    lg: { padding: '8px 16px', fontSize: '14px' },
+    sm: { padding: '4px 10px', fontSize: '12px' },
+    md: { padding: '6px 14px', fontSize: '13px' },
+    lg: { padding: '8px 18px', fontSize: '14px' },
   };
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -56,16 +87,23 @@ export function Button({
   };
 
   return (
-    <button
-      style={{ ...baseStyles, ...variantStyles[variant], ...sizeStyles[size] }}
-      disabled={disabled || loading}
-      onClick={handleClick}
-      {...props}
-    >
-      {loading && (
-        <span style={{ marginRight: '6px' }}>⏳</span>
-      )}
-      {children}
-    </button>
+    <>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <button
+        style={{ ...baseStyles, ...variantStyles[variant], ...sizeStyles[size] }}
+        disabled={disabled || loading}
+        onClick={handleClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        {...props}
+      >
+        {loading && <Spinner />}
+        {children}
+      </button>
+    </>
   );
 }

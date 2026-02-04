@@ -8,29 +8,36 @@
 
 - **Build Tool**: esbuild (custom build.js)
 - **Framework**: React 18 + TypeScript
-- **Styling**: Inline styles (Shadow DOM compatible)
+- **Styling**: Inline styles with dark theme (Shadow DOM compatible)
 - **State Management**: React useState + Chrome Storage API
 - **DOM Strategy**: MutationObserver for LinkedIn SPA navigation
+- **Design System**: Dark theme matching Carya Eagle Eye frontend
 
 ## Current Status
 
-See `CURRENT_STATE.md` for detailed bug list and fixes needed.
+See `CURRENT_STATE.md` for detailed bug list and implementation history.
 
 ### Working Features
 - Extension loads on LinkedIn pages
-- Company/profile page detection
-- Popup settings UI with environment selector
-- API connection to Railway backend (open access, no auth)
-- Add to Tracker saves locally to chrome.storage
-- CVP logo icons
+- Company page detection (`/company/` URLs)
+- Profile page detection (`/in/` URLs) - searches by founder name
+- Popup settings UI with Search and Settings tabs
+- API connection to Railway backend
+- **Add to Tracker** - saves to Railway backend (requires API key)
+- **Untrack** - removes companies from local tracker
+- Dark theme UI matching Carya Eagle Eye
+- Collapse/expand toggle for overlay
+- Loading states and error handling
 
-### Known Bugs
-1. URL doubled in API calls
-2. CORS blocking popup fetch (should use background worker)
-3. Error logging shows "[object Object]"
-4. Settings don't auto-persist
+### Authentication
 
-## Backend API (ACTUAL)
+| Feature | Auth Required |
+|---------|--------------|
+| Deal lookup (`GET /deals`) | No |
+| Add to Tracker (`POST /tracker/from-deal`) | Yes (API key) |
+| Manual tracker entry (`POST /tracker`) | Yes (API key) |
+
+## Backend API
 
 ### Base URLs
 ```
@@ -40,18 +47,17 @@ Local:      http://localhost:8000
 
 ### Endpoints
 ```
-GET /deals?search={query}&limit=10
+GET  /deals?search={query}&limit=10     # No auth - deal search
+POST /tracker/from-deal                  # Requires X-API-Key
+POST /tracker                            # Requires X-API-Key
 ```
 
-### Authentication
-**No auth required** - API is open access
-
-### Response Format
+### Response Format (Deals)
 ```json
 {
   "deals": [{
     "id": "2535",
-    "startup_name": "Testkube",        // NOT companyName
+    "startup_name": "Testkube",
     "investment_stage": "series_a",
     "amount_invested": "$8M",
     "date": "2025-09-23",
@@ -93,12 +99,37 @@ Railway Backend
 | `build.js` | esbuild config |
 | `manifest.json` | Extension manifest |
 | `src/background/index.ts` | Service worker, message handlers |
+| `src/background/messages/tracker.ts` | Tracker API operations |
 | `src/content/linkedin-overlay.tsx` | LinkedIn page overlay |
-| `src/popup.tsx` | Settings popup |
-| `src/services/api/client.ts` | API client |
+| `src/popup.tsx` | Settings popup with Search tab |
+| `src/services/api/client.ts` | API client with auth |
 | `src/services/api/deals.ts` | Deal search with response mapping |
+| `src/services/api/tracker.ts` | Tracker endpoints |
+| `src/components/overlay/DealCard.tsx` | Main deal display card |
+| `src/components/ui/Card.tsx` | UI card with CARYA_COLORS |
 | `src/constants/config.ts` | Environment URLs |
 | `src/constants/endpoints.ts` | API endpoint paths |
+
+## Design System
+
+Dark theme colors (defined in `src/components/ui/Card.tsx`):
+
+```typescript
+const CARYA_COLORS = {
+  background: '#0d1117',
+  cardBackground: '#161b22',
+  cardBackgroundHover: '#1c2128',
+  border: '#30363d',
+  textPrimary: '#f0f6fc',
+  textSecondary: '#8b949e',
+  textMuted: '#6e7681',
+  accent: '#00d4aa',        // Teal for amounts
+  accentHover: '#00f0c0',
+  success: '#3fb950',
+  error: '#f85149',
+  warning: '#d29922',
+};
+```
 
 ## Manifest Permissions
 
@@ -146,7 +177,7 @@ Environments:
 - `production` - Railway backend
 
 Settings stored in `chrome.storage.sync`:
-- `carya_api_key` - API key (not required)
+- `carya_api_key` - API key (required for tracker operations)
 - `carya_environment` - Current environment
 
 ## LinkedIn DOM Selectors
@@ -172,15 +203,32 @@ LinkedIn uses obfuscated classes. Use stable selectors:
 |------|-----------|---------|
 | `PING` | popup→bg | Health check |
 | `LOOKUP_DEAL` | content→bg | Search deals |
-| `ADD_TO_TRACKER` | content→bg | Add company |
-| `HEALTH_CHECK` | popup→bg | Test API |
+| `ADD_TO_TRACKER` | content→bg | Add company to tracker |
+| `CHECK_TRACKER_STATUS` | content→bg | Check if tracked |
+| `MOVE_TRACKER` | content→bg | Update tracker status |
+| `HEALTH_CHECK` | popup→bg | Test API connection |
 | `RELOAD_SETTINGS` | popup→bg | Refresh config |
 
 ## Testing
 
 Test URLs:
-- `linkedin.com/company/anthropic`
-- `linkedin.com/company/stripe`
-- `linkedin.com/in/username`
+- `linkedin.com/company/anthropic` - Company page
+- `linkedin.com/company/stripe` - Company page
+- `linkedin.com/in/username` - Profile page (searches by founder name)
 
 Check console for `[Carya]` logs.
+
+## Troubleshooting
+
+### "Saved locally" instead of Railway
+- **Cause**: API key not set
+- **Fix**: Open popup → Settings → Enter API key → Save
+
+### Deal lookup works but tracker fails
+- **Cause**: Deal lookup is open access, tracker requires auth
+- **Fix**: Set API key in extension popup
+
+### Extension not appearing on LinkedIn
+- **Check**: `chrome://extensions/` - ensure enabled
+- **Check**: Console for `[Carya]` errors
+- **Try**: Reload extension and refresh LinkedIn page

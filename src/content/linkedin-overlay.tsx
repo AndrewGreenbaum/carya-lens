@@ -42,6 +42,8 @@ function LinkedInOverlay() {
   const [deal, setDeal] = useState<DealData | null>(null);
   const [error, setError] = useState<ErrorState | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [founderName, setFounderName] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string | null>(null); // What we searched for
   const [isTracked, setIsTracked] = useState(false);
   const [isAddingToTracker, setIsAddingToTracker] = useState(false);
   const [trackerMessage, setTrackerMessage] = useState<string | null>(null);
@@ -79,11 +81,16 @@ function LinkedInOverlay() {
             return;
           }
           log('info', 'Profile data scraped', profileData);
+          setFounderName(profileData.founderName);
           setCompanyName(profileData.currentCompany);
-          if (profileData.currentCompany) {
-            lookupDeal(profileData.currentCompany);
+
+          // For profile pages, search by founder name to find their deals
+          if (profileData.founderName) {
+            log('info', 'Searching deals by founder name', { founderName: profileData.founderName });
+            setSearchQuery(profileData.founderName);
+            lookupDealByFounder(profileData.founderName);
           } else {
-            log('warn', 'No company found in profile');
+            log('warn', 'No founder name found on profile');
             setLoading(false);
           }
         } else {
@@ -102,11 +109,12 @@ function LinkedInOverlay() {
     return () => clearTimeout(timeout);
   }, []);
 
-  // Look up deal data via background worker
+  // Look up deal data by company name via background worker
   const lookupDeal = async (query: string) => {
-    log('info', 'Looking up deal', { query });
+    log('info', 'Looking up deal by company', { query });
     setLoading(true);
     setError(null);
+    setSearchQuery(query);
 
     try {
       const response = await chrome.runtime.sendMessage({
@@ -138,6 +146,48 @@ function LinkedInOverlay() {
       }
     } catch (err) {
       log('error', 'Exception during deal lookup', { error: err instanceof Error ? err.message : String(err) });
+      setError({ message: 'Failed to look up deal', type: 'NETWORK_ERROR' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Look up deal data by founder name via background worker
+  const lookupDealByFounder = async (name: string) => {
+    log('info', 'Looking up deal by founder name', { founderName: name });
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'LOOKUP_DEAL',
+        payload: { founderName: name },
+      });
+
+      log('info', 'Founder deal lookup response', response);
+
+      if (chrome.runtime.lastError) {
+        log('error', 'Runtime error on founder deal lookup', { error: chrome.runtime.lastError.message });
+        setError({ message: chrome.runtime.lastError.message || 'Connection error', type: 'NETWORK_ERROR' });
+        setLoading(false);
+        return;
+      }
+
+      if (response?.success && response.data) {
+        log('info', 'Deal found for founder', { founderName: name, companyName: response.data.companyName });
+        setDeal(response.data);
+      } else if (response?.success && !response.data) {
+        log('info', 'No deal found for founder', { founderName: name });
+        setDeal(null);
+      } else {
+        log('warn', 'Founder deal lookup failed', { error: response?.error, errorType: response?.errorType });
+        setError({
+          message: response?.error || 'Lookup failed',
+          type: response?.errorType,
+        });
+      }
+    } catch (err) {
+      log('error', 'Exception during founder deal lookup', { error: err instanceof Error ? err.message : String(err) });
       setError({ message: 'Failed to look up deal', type: 'NETWORK_ERROR' });
     } finally {
       setLoading(false);
@@ -189,25 +239,52 @@ function LinkedInOverlay() {
 
       log('info', 'Saved to local tracker', { companyName: deal.companyName, totalTracked: trackedCompanies.length });
 
-      // Also try to send to background worker (for potential API call)
+      // Send to background worker to call real API (saves to Railway backend)
+      log('info', 'Calling ADD_TO_TRACKER API', {
+        companyName: deal.companyName,
+        dealId: deal.id,
+      });
+
       const response = await chrome.runtime.sendMessage({
         type: 'ADD_TO_TRACKER',
         payload: {
           companyName: deal.companyName,
+          dealId: deal.id, // Pass deal_id for /tracker/from-deal endpoint
           linkedInUrl: window.location.href,
           website: deal.source,
         },
       });
 
       if (chrome.runtime.lastError) {
-        log('warn', 'Runtime error (but saved locally)', { error: chrome.runtime.lastError.message });
+        log('error', 'Runtime error calling tracker API', { error: chrome.runtime.lastError.message });
+        setTrackerMessage('Saved locally (API unavailable)');
       } else {
-        log('info', 'Add to Tracker response', response);
+        log('info', 'Add to Tracker API response', {
+          success: response?.success,
+          error: response?.error,
+          data: response?.data,
+        });
+
+        if (response?.success) {
+          setTrackerMessage('Added to Railway tracker!');
+        } else {
+          // API call failed - show helpful error message
+          const errorMsg = response?.error || 'API error';
+          log('warn', 'Tracker API returned error', { error: errorMsg });
+
+          // Check for auth-related errors
+          if (errorMsg.includes('401') || errorMsg.includes('Invalid API') || errorMsg.includes('API key')) {
+            setTrackerMessage('API key required - set in extension popup');
+          } else if (errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+            setTrackerMessage('Saved locally (network error)');
+          } else {
+            setTrackerMessage(`Saved locally (${errorMsg})`);
+          }
+        }
       }
 
-      // Update UI regardless of API response (local save succeeded)
+      // Update UI - local save succeeded
       setIsTracked(true);
-      setTrackerMessage('Added to tracker!');
 
     } catch (err) {
       log('error', 'Exception adding to tracker', {
@@ -215,6 +292,51 @@ function LinkedInOverlay() {
         errorName: err instanceof Error ? err.name : 'Unknown',
       });
       setTrackerMessage('Failed to add');
+    } finally {
+      setIsAddingToTracker(false);
+      // Clear message after 3 seconds
+      setTimeout(() => setTrackerMessage(null), 3000);
+    }
+  };
+
+  // Handle untrack
+  const handleUntrack = async () => {
+    if (!deal) {
+      log('warn', 'Untrack clicked but no deal data');
+      return;
+    }
+
+    log('info', 'Untrack clicked', {
+      companyName: deal.companyName,
+    });
+
+    setIsAddingToTracker(true); // Reuse loading state
+    setTrackerMessage(null);
+
+    try {
+      // Remove from local storage
+      const trackedCompanies = await getTrackedCompanies();
+      const updatedCompanies = trackedCompanies.filter(
+        (c: { companyName: string }) => c.companyName.toLowerCase() !== deal.companyName.toLowerCase()
+      );
+
+      await chrome.storage.local.set({ trackedCompanies: updatedCompanies });
+
+      log('info', 'Removed from local tracker', {
+        companyName: deal.companyName,
+        remainingTracked: updatedCompanies.length,
+      });
+
+      // Update UI
+      setIsTracked(false);
+      setTrackerMessage('Removed from tracker');
+
+    } catch (err) {
+      log('error', 'Exception removing from tracker', {
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorName: err instanceof Error ? err.name : 'Unknown',
+      });
+      setTrackerMessage('Failed to remove');
     } finally {
       setIsAddingToTracker(false);
       // Clear message after 3 seconds
@@ -249,7 +371,9 @@ function LinkedInOverlay() {
 
   // Handle refresh
   const handleRefresh = () => {
-    if (companyName) {
+    if (pageType === 'profile' && founderName) {
+      lookupDealByFounder(founderName);
+    } else if (companyName) {
       lookupDeal(companyName);
     }
   };
@@ -329,6 +453,7 @@ function LinkedInOverlay() {
             deal={deal}
             isTracked={isTracked}
             onAddToTracker={handleAddToTracker}
+            onUntrack={handleUntrack}
             onRefresh={handleRefresh}
           />
           {trackerMessage && (
@@ -346,6 +471,8 @@ function LinkedInOverlay() {
       {!loading && !error && !deal && (
         <NotInDatabase
           companyName={companyName}
+          founderName={founderName}
+          searchQuery={searchQuery}
           onSuggest={handleSuggest}
         />
       )}
@@ -363,30 +490,43 @@ const overlayContainerStyle: React.CSSProperties = {
   fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
 
+// Dark theme colors matching Carya Eagle Eye
+const DARK_THEME = {
+  cardBackground: '#161b22',
+  border: '#30363d',
+  textPrimary: '#f0f6fc',
+  textSecondary: '#8b949e',
+  accent: '#00d4aa',
+  error: '#f85149',
+  warning: '#d29922',
+  success: '#3fb950',
+};
+
 const errorStyle: React.CSSProperties = {
-  backgroundColor: '#fee2e2',
-  color: '#991b1b',
+  backgroundColor: 'rgba(248, 81, 73, 0.15)',
+  color: DARK_THEME.error,
   padding: '12px',
   borderRadius: '8px',
   fontSize: '13px',
+  border: `1px solid ${DARK_THEME.error}40`,
 };
 
 const configErrorStyle: React.CSSProperties = {
-  backgroundColor: '#fef3c7',
-  color: '#92400e',
+  backgroundColor: 'rgba(210, 153, 34, 0.15)',
+  color: DARK_THEME.warning,
   padding: '12px',
   borderRadius: '8px',
   fontSize: '13px',
-  border: '1px solid #f59e0b',
+  border: `1px solid ${DARK_THEME.warning}`,
 };
 
 const networkErrorStyle: React.CSSProperties = {
-  backgroundColor: '#e0e7ff',
-  color: '#3730a3',
+  backgroundColor: DARK_THEME.cardBackground,
+  color: DARK_THEME.textSecondary,
   padding: '12px',
   borderRadius: '8px',
   fontSize: '13px',
-  border: '1px solid #6366f1',
+  border: `1px solid ${DARK_THEME.border}`,
 };
 
 const retryButtonStyle: React.CSSProperties = {
@@ -394,8 +534,8 @@ const retryButtonStyle: React.CSSProperties = {
   padding: '6px 12px',
   fontSize: '12px',
   fontWeight: 500,
-  color: '#fff',
-  backgroundColor: '#4f46e5',
+  color: '#000',
+  backgroundColor: DARK_THEME.accent,
   border: 'none',
   borderRadius: '4px',
   cursor: 'pointer',
@@ -404,12 +544,13 @@ const retryButtonStyle: React.CSSProperties = {
 const trackerMessageStyle: React.CSSProperties = {
   marginTop: '8px',
   padding: '8px 12px',
-  backgroundColor: '#ecfdf5',
-  color: '#065f46',
+  backgroundColor: 'rgba(63, 185, 80, 0.15)',
+  color: DARK_THEME.success,
   borderRadius: '6px',
   fontSize: '13px',
   textAlign: 'center',
   fontWeight: 500,
+  border: `1px solid ${DARK_THEME.success}40`,
 };
 
 // Initialize overlay

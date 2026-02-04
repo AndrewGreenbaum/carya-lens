@@ -24,7 +24,10 @@ export async function getStealthSignals(
 
     return response;
   } catch (error) {
-    logger.error('Get stealth signals error', { companyName, error });
+    logger.error('Get stealth signals error', {
+      companyName,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to get stealth signals',

@@ -36,7 +36,10 @@ export async function enrichFromLinkedIn(
 
     return response;
   } catch (error) {
-    logger.error('Enrich from LinkedIn error', { payload, error });
+    logger.error('Enrich from LinkedIn error', {
+      payload,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to submit enrichment',
@@ -61,7 +64,10 @@ export async function enrichCompany(
 
     return response;
   } catch (error) {
-    logger.error('Enrich company error', { companyName, error });
+    logger.error('Enrich company error', {
+      companyName,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to enrich company',
@@ -86,7 +92,10 @@ export async function enrichFounder(
 
     return response;
   } catch (error) {
-    logger.error('Enrich founder error', { founderName, error });
+    logger.error('Enrich founder error', {
+      founderName,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to enrich founder',

@@ -1,8 +1,6 @@
 // API endpoint URLs
 // Note: The real API does not use version prefix (no /v1)
 
-import { API_BASE_URL } from './config';
-
 const createEndpoint = (path: string) => path;
 
 // Deal Endpoints
@@ -16,9 +14,11 @@ export const TRACKER_ENDPOINTS = {
   LIST: createEndpoint('/tracker'),
   GET: (id: string) => createEndpoint(`/tracker/${id}`),
   ADD: createEndpoint('/tracker'),
+  ADD_FROM_DEAL: createEndpoint('/tracker/from-deal'),
   MOVE: (id: string) => createEndpoint(`/tracker/${id}/move`),
   DELETE: (id: string) => createEndpoint(`/tracker/${id}`),
   CHECK_STATUS: createEndpoint('/tracker/check'),
+  COLUMNS: createEndpoint('/tracker/columns'),
 } as const;
 
 // Stealth Signals Endpoints

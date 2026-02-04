@@ -55,7 +55,10 @@ export class APIClient {
     this.maxRetries = API_RETRIES;
     // Auto-load settings on construction
     this.loadSettings().catch(err => {
-      log('error', 'Failed to auto-load settings', { error: err });
+      log('error', 'Failed to auto-load settings', {
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorName: err instanceof Error ? err.name : 'Unknown',
+      });
     });
   }
 

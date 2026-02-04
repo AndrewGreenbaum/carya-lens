@@ -1,9 +1,10 @@
 /**
  * Loading State Component
+ * Dark theme matching Carya Eagle Eye frontend
  */
 
 import React from 'react';
-import { Card } from '../ui/Card';
+import { Card, CARYA_COLORS } from '../ui/Card';
 
 export function LoadingState() {
   console.log('[Carya] Rendering LoadingState');
@@ -15,13 +16,13 @@ export function LoadingState() {
           style={{
             width: '20px',
             height: '20px',
-            border: '2px solid #e5e7eb',
-            borderTopColor: '#2563eb',
+            border: `2px solid ${CARYA_COLORS.border}`,
+            borderTopColor: CARYA_COLORS.accent,
             borderRadius: '50%',
             animation: 'spin 1s linear infinite',
           }}
         />
-        <span style={{ color: '#6b7280', fontSize: '14px' }}>
+        <span style={{ color: CARYA_COLORS.textSecondary, fontSize: '14px' }}>
           Looking up deal data...
         </span>
       </div>

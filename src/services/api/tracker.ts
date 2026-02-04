@@ -1,7 +1,8 @@
 // Tracker API endpoints
-// NOTE: The backend may not have a /tracker endpoint
-// If API call fails, we return success: false but the content script
-// already saves to chrome.storage.local as a fallback
+// Backend endpoints:
+// - POST /tracker/from-deal - Add existing deal to tracker (requires deal_id)
+// - POST /tracker - Create manual tracker item (requires company_name)
+// Both require X-API-Key header
 
 import type {
   TrackerItem,
@@ -14,45 +15,119 @@ import { apiClient } from './client';
 import { TRACKER_ENDPOINTS } from '../../constants/endpoints';
 import { logger } from '../../utils/logger';
 
+// API request types for tracker
+interface AddFromDealRequest {
+  deal_id: number;
+  status?: string;
+}
+
+interface CreateTrackerItemRequest {
+  company_name: string;
+  round_type?: string;
+  amount?: string;
+  lead_investor?: string;
+  website?: string;
+  notes?: string;
+  status?: string;
+}
+
+// API response type from tracker
+interface TrackerItemResponse {
+  id: number;
+  company_name: string;
+  round_type: string | null;
+  amount: string | null;
+  lead_investor: string | null;
+  website: string | null;
+  status: string;
+  deal_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
- * Add company to tracker
+ * Add deal to tracker using deal_id (preferred method)
+ * Uses POST /tracker/from-deal
+ */
+export async function addDealToTracker(
+  dealId: string | number,
+  status: string = 'watching'
+): Promise<APIResponse<TrackerItemResponse>> {
+  const endpoint = TRACKER_ENDPOINTS.ADD_FROM_DEAL;
+  const payload: AddFromDealRequest = {
+    deal_id: typeof dealId === 'string' ? parseInt(dealId, 10) : dealId,
+    status,
+  };
+
+  logger.info('Add deal to tracker - starting', {
+    endpoint,
+    dealId,
+    status,
+    payload: JSON.stringify(payload),
+  });
+
+  try {
+    const response = await apiClient.post<TrackerItemResponse>(endpoint, payload);
+
+    logger.info('Add deal to tracker - API response', {
+      endpoint,
+      success: response.success,
+      error: response.error,
+      data: response.data ? JSON.stringify(response.data) : null,
+    });
+
+    return response;
+  } catch (error) {
+    logger.error('Add deal to tracker - exception', {
+      endpoint,
+      dealId,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to add deal to tracker',
+    };
+  }
+}
+
+/**
+ * Add company to tracker (manual entry)
+ * Uses POST /tracker
  * Logs full request/response for debugging
  */
 export async function addToTracker(
   payload: AddToTrackerPayload
-): Promise<APIResponse<TrackerItem>> {
+): Promise<APIResponse<TrackerItemResponse>> {
   const endpoint = TRACKER_ENDPOINTS.ADD;
+
+  // Map our payload to API format
+  const apiPayload: CreateTrackerItemRequest = {
+    company_name: payload.companyName,
+    website: payload.website,
+    notes: payload.notes,
+    status: 'watching',
+  };
 
   logger.info('Add to tracker - starting', {
     endpoint,
-    payload,
+    payload: JSON.stringify(apiPayload),
   });
 
   try {
-    logger.info('Add to tracker - calling API', {
-      endpoint,
-      method: 'POST',
-      payload: JSON.stringify(payload),
-    });
-
-    const response = await apiClient.post<TrackerItem>(endpoint, payload);
+    const response = await apiClient.post<TrackerItemResponse>(endpoint, apiPayload);
 
     logger.info('Add to tracker - API response', {
       endpoint,
       success: response.success,
       error: response.error,
-      data: response.data,
-      fullResponse: JSON.stringify(response),
+      data: response.data ? JSON.stringify(response.data) : null,
     });
 
     return response;
   } catch (error) {
     logger.error('Add to tracker - exception', {
       endpoint,
-      payload,
       errorMessage: error instanceof Error ? error.message : String(error),
-      errorName: error instanceof Error ? error.name : 'Unknown',
-      errorStack: error instanceof Error ? error.stack : undefined,
     });
     return {
       success: false,
@@ -82,7 +157,10 @@ export async function moveTrackerStatus(
 
     return response;
   } catch (error) {
-    logger.error('Move tracker status error', { payload, error });
+    logger.error('Move tracker status error', {
+      payload,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to update status',
@@ -108,7 +186,10 @@ export async function checkTrackerStatus(
 
     return response;
   } catch (error) {
-    logger.error('Check tracker status error', { companyName, error });
+    logger.error('Check tracker status error', {
+      companyName,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to check tracker status',
@@ -128,7 +209,10 @@ export async function getTrackerItem(id: string): Promise<APIResponse<TrackerIte
 
     return response;
   } catch (error) {
-    logger.error('Get tracker item error', { id, error });
+    logger.error('Get tracker item error', {
+      id,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to get tracker item',
@@ -148,7 +232,10 @@ export async function deleteTrackerItem(id: string): Promise<APIResponse<void>> 
 
     return response;
   } catch (error) {
-    logger.error('Delete tracker item error', { id, error });
+    logger.error('Delete tracker item error', {
+      id,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to delete tracker item',
@@ -167,7 +254,9 @@ export async function listTrackerItems(): Promise<APIResponse<TrackerItem[]>> {
 
     return response;
   } catch (error) {
-    logger.error('List tracker items error', { error });
+    logger.error('List tracker items error', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to list tracker items',

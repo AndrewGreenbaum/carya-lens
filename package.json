@@ -36,8 +36,9 @@
   },
   "manifest": {
     "host_permissions": [
-      "https://www.linkedin.com/*",
-      "https://api.carya.com/*"
+      "*://*.linkedin.com/*",
+      "https://bud-tracker-backend-production.up.railway.app/*",
+      "http://localhost:8000/*"
     ],
     "permissions": [
       "storage",

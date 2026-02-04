@@ -37,7 +37,10 @@ export async function submitSuggestion(
 
     return response;
   } catch (error) {
-    logger.error('Submit suggestion error', { payload, error });
+    logger.error('Submit suggestion error', {
+      payload,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to submit suggestion',
@@ -65,7 +68,10 @@ export async function flagIssue(
 
     return response;
   } catch (error) {
-    logger.error('Flag issue error', { payload, error });
+    logger.error('Flag issue error', {
+      payload,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to flag issue',
@@ -92,7 +98,10 @@ export async function reportBug(
 
     return response;
   } catch (error) {
-    logger.error('Report bug error', { description, error });
+    logger.error('Report bug error', {
+      description,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       error: 'Failed to report bug',
