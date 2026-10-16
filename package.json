@@ -9,11 +9,12 @@
     "dev": "node build.js",
     "build": "node build.js",
     "type-check": "tsc --noEmit",
-    "test": "npm run test:utils && npm run test:logger && npm run test:types",
+    "test": "npm run test:utils && npm run test:logger && npm run test:types && npm run test:api",
     "test:utils": "tsx test/utils.test.ts",
     "test:logger": "tsx test/logger.test.ts",
     "test:types": "tsx test/types.test.ts",
-    "verify": "npm run type-check && npm run test"
+    "verify": "npm run type-check && npm run test",
+    "test:api": "tsx --test test/api-client.test.ts"
   },
   "dependencies": {
     "plasmo": "^0.84.0",

@@ -40,89 +40,98 @@ const buildConfig = {
   ],
 };
 
-// Build background worker (use IIFE format for service worker compatibility)
-esbuild.build({
-  ...buildConfig,
-  entryPoints: ['src/background/index.ts'],
-  outfile: 'dist/background.js',
-  tsconfig: './tsconfig.json',
-  format: 'iife', // Service workers need IIFE, not ESM
-}).catch(() => process.exit(1));
+async function build() {
+  await Promise.all([
+  esbuild.build({
+    ...buildConfig,
+    entryPoints: ['src/background/index.ts'],
+    outfile: 'dist/background.js',
+    tsconfig: './tsconfig.json',
+    format: 'iife', // Service workers need IIFE, not ESM
+  }),
 
-// Build popup
-esbuild.build({
-  ...buildConfig,
-  entryPoints: ['src/popup.tsx'],
-  outfile: 'dist/popup.js',
-  tsconfig: './tsconfig.json',
-  jsx: 'automatic',
-  loader: {
-    '.tsx': 'tsx',
-    '.ts': 'ts',
-  },
-}).catch(() => process.exit(1));
+  // Build popup
+  esbuild.build({
+    ...buildConfig,
+    entryPoints: ['src/popup.tsx'],
+    outfile: 'dist/popup.js',
+    tsconfig: './tsconfig.json',
+    jsx: 'automatic',
+    loader: {
+      '.tsx': 'tsx',
+      '.ts': 'ts',
+    },
+  }),
 
-// Build content script (IIFE for injection into pages)
-esbuild.build({
-  ...buildConfig,
-  entryPoints: ['src/content/linkedin-overlay.tsx'],
-  outfile: 'dist/content.js',
-  tsconfig: './tsconfig.json',
-  format: 'iife', // Content scripts need IIFE
-  jsx: 'automatic',
-  loader: {
-    '.tsx': 'tsx',
-    '.ts': 'ts',
-  },
-}).catch(() => process.exit(1));
+  // Build content script (IIFE for injection into pages)
+  esbuild.build({
+    ...buildConfig,
+    entryPoints: ['src/content/linkedin-overlay.tsx'],
+    outfile: 'dist/content.js',
+    tsconfig: './tsconfig.json',
+    format: 'iife', // Content scripts need IIFE
+    jsx: 'automatic',
+    loader: {
+      '.tsx': 'tsx',
+      '.ts': 'ts',
+    },
+  })
+  ]);
 
-// Copy manifest
-fs.copyFileSync(
-  path.join(__dirname, 'manifest.json'),
-  path.join(distDir, 'manifest.json')
-);
+  // Copy manifest
+  fs.copyFileSync(
+    path.join(__dirname, 'manifest.json'),
+    path.join(distDir, 'manifest.json')
+  );
 
-// Copy assets
-const assetsDir = path.join(__dirname, 'assets');
-const distAssetsDir = path.join(distDir, 'assets');
+  // Copy assets
+  const assetsDir = path.join(__dirname, 'assets');
+  const distAssetsDir = path.join(distDir, 'assets');
 
-if (fs.existsSync(assetsDir)) {
-  fs.mkdirSync(distAssetsDir, { recursive: true });
+  if (fs.existsSync(assetsDir)) {
+    fs.mkdirSync(distAssetsDir, { recursive: true });
 
-  const files = fs.readdirSync(assetsDir);
-  files.forEach(file => {
-    fs.copyFileSync(
-      path.join(assetsDir, file),
-      path.join(distAssetsDir, file)
-    );
-  });
+    const files = fs.readdirSync(assetsDir);
+    files.forEach(file => {
+      fs.copyFileSync(
+        path.join(assetsDir, file),
+        path.join(distAssetsDir, file)
+      );
+    });
+  }
+
+  // Create popup.html
+  const popupHtml = `<!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        width: 300px;
+        min-height: 200px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./popup.js"></script>
+  </body>
+  </html>`;
+
+  fs.writeFileSync(path.join(distDir, 'popup.html'), popupHtml);
+
+  console.log('Build complete: dist/');
+  console.log('\nTo load in Chrome:');
+  console.log('1. Open chrome://extensions');
+  console.log('2. Enable "Developer mode"');
+  console.log('3. Click "Load unpacked"');
+  console.log('4. Select the dist/ folder\n');
+
 }
 
-// Create popup.html
-const popupHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      width: 300px;
-      min-height: 200px;
-    }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module" src="./popup.js"></script>
-</body>
-</html>`;
-
-fs.writeFileSync(path.join(distDir, 'popup.html'), popupHtml);
-
-console.log('\n✅ Build complete! Output: dist/');
-console.log('\nTo load in Chrome:');
-console.log('1. Open chrome://extensions');
-console.log('2. Enable "Developer mode"');
-console.log('3. Click "Load unpacked"');
-console.log('4. Select the dist/ folder\n');
+build().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

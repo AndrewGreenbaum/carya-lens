@@ -264,8 +264,12 @@ export class APIClient {
         fetchOptions.body = JSON.stringify(body);
       }
 
-      const response = await fetch(url, fetchOptions);
-      clearTimeout(timeoutId);
+      let response: Response;
+      try {
+        response = await fetch(url, fetchOptions);
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const elapsed = Date.now() - startTime;
 
@@ -281,6 +285,10 @@ export class APIClient {
       // Handle non-2xx responses
       if (!response.ok) {
         return this.handleErrorResponse<T>(response, url, options, retryCount, elapsed);
+      }
+
+      if (response.status === 204 || response.status === 205) {
+        return { success: true };
       }
 
       // Parse response
@@ -375,7 +383,7 @@ export class APIClient {
         });
 
         // Retry on 5xx errors
-        if (retryCount < (options.retries || this.maxRetries)) {
+        if (retryCount < (options.retries ?? this.maxRetries)) {
           const delay = this.getRetryDelay(retryCount);
           log('info', 'Retrying after server error', { url, delay, nextRetry: retryCount + 1 });
           await this.delay(delay);
