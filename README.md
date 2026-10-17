@@ -1,74 +1,27 @@
-# Carya Lens - Chrome Extension
+# Carya Lens
 
-> Instant deal intelligence overlays on LinkedIn
-
-[![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue)]()
-[![Verified](https://img.shields.io/badge/Codebase-Verified-success)]()
-[![Tests](https://img.shields.io/badge/Tests-27%2F27%20Passing-success)]()
-
-**Status:** ✅ Foundation verified - 24 files compiling with 0 errors
-
-## Verification Status
-
-See [VERIFICATION_SUMMARY.md](./VERIFICATION_SUMMARY.md) for complete verification results.
-
-```bash
-# Verify codebase health
-npm run verify
-# ✅ TypeScript: 0 errors
-# ✅ Tests: 27/27 passing
-```
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Verify installation
-npm run verify
-
-# Start development server (when components are ready)
-npm run dev
-
-# Build for production
-npm run build
-```
-
-## Load Extension in Chrome
-
-1. Navigate to `chrome://extensions/`
-2. Enable "Developer mode"
-3. Click "Load unpacked"
-4. Select `build/chrome-mv3-dev` folder
-
-## Configuration
-
-1. Copy `.env.example` to `.env`
-2. Update API configuration if needed
-3. Click extension icon in Chrome toolbar
-4. Enter your API key in the popup
-
-## Project Structure
-
-See [CLAUDE.md](./CLAUDE.md) for detailed architecture documentation.
+A Chrome extension that shows Carya deal records while viewing LinkedIn company and profile pages. Company pages search by company name; profiles search by founder name.
 
 ## Development
 
-The extension uses:
-- **Plasmo Framework** for Chrome Extension development
-- **React** for UI components
-- **TailwindCSS** for styling
-- **TypeScript** for type safety
+Requires Node.js 20 or later.
 
-## Features
+```sh
+npm ci
+npm run verify
+npm run build
+```
 
-- Deal context overlay on LinkedIn profiles
-- Stealth signal detection
-- Quick actions (add to tracker, enrich, export)
-- Relationship mapping
-- 1-hour cache for performance
+Load the generated `dist/` directory through **Load unpacked** at `chrome://extensions`. Rebuild and reload the extension after changing its source. The build uses esbuild, React and TypeScript with component styles; unused Plasmo and Tailwind/PostCSS tooling has been removed. `npm run dev` currently performs the same one-shot build.
 
-## Support
+## Configuration and behavior
 
-For issues or questions, contact support@carya.com
+Open the extension popup to select the API environment and save an API key. Deal lookup depends on the configured Carya/Bud backend. Tracker writes require its API key.
+
+Adding a company saves it in local Chrome storage, then attempts to add it to the backend tracker. A failed backend request leaves the local record available and displays an error. **Untrack** removes the local record only; it does not delete the backend tracker item.
+
+The overlay depends on LinkedIn's current page markup. Live LinkedIn behavior and backend integrations require a manual check with an authorized account. API wrappers for enrichment and signals are present, but are not a guarantee that every feature is exposed in the overlay.
+
+## Checks
+
+`npm run verify` type-checks source and test fixtures, runs utility assertions, and exercises the API client with mocked requests. The checks do not call a live service. Build output is written only after all bundles succeed.

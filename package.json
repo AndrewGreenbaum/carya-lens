@@ -9,14 +9,14 @@
     "dev": "node build.js",
     "build": "node build.js",
     "type-check": "tsc --noEmit",
-    "test": "npm run test:utils && npm run test:logger && npm run test:types",
+    "test": "npm run test:utils && npm run test:logger && npm run test:types && npm run test:api",
     "test:utils": "tsx test/utils.test.ts",
     "test:logger": "tsx test/logger.test.ts",
     "test:types": "tsx test/types.test.ts",
-    "verify": "npm run type-check && npm run test"
+    "verify": "npm run type-check && npm run test",
+    "test:api": "tsx --test test/api-client.test.ts"
   },
   "dependencies": {
-    "plasmo": "^0.84.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -25,12 +25,8 @@
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
-    "autoprefixer": "^10.4.16",
     "esbuild": "^0.27.2",
     "esbuild-plugin-alias": "^0.2.1",
-    "esbuild-plugin-copy": "^2.1.1",
-    "postcss": "^8.4.32",
-    "tailwindcss": "^3.3.6",
     "tsx": "^4.21.0",
     "typescript": "^5.3.2"
   },
@@ -44,8 +40,5 @@
       "storage",
       "activeTab"
     ]
-  },
-  "overrides": {
-    "@parcel/watcher": "2.4.1"
   }
 }

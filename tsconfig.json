@@ -28,12 +28,11 @@
     }
   },
   "include": [
-    ".plasmo/index.d.ts",
-    "src/**/*"
+    "src/**/*",
+    "test/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "build",
-    ".plasmo"
+    "build"
   ]
 }
