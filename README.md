@@ -1,4 +1,4 @@
-# Carya Lens
+# Carya LinkedIn Deal Lookup
 
 A Chrome extension that shows Carya deal records while viewing LinkedIn company and profile pages. Company pages search by company name; profiles search by founder name.
 
@@ -16,7 +16,7 @@ Load the generated `dist/` directory through **Load unpacked** at `chrome://exte
 
 ## Configuration and behavior
 
-Open the extension popup to select the API environment and save an API key. Deal lookup depends on the configured Carya/Bud backend. Tracker writes require its API key.
+Open the extension popup to select the API environment and save an API key. Deal lookup depends on the configured Carya Deal Tracker or Funding News Tracker backend. Tracker writes require its API key.
 
 Adding a company saves it in local Chrome storage, then attempts to add it to the backend tracker. A failed backend request leaves the local record available and displays an error. **Untrack** removes the local record only; it does not delete the backend tracker item.
 

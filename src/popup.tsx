@@ -345,7 +345,7 @@ function IndexPopup() {
           <text x="12" y="16" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold" fontFamily="system-ui">C</text>
         </svg>
         <div>
-          <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Carya Lens</h1>
+          <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Carya LinkedIn Deal Lookup</h1>
           <div style={{ fontSize: '11px', color: '#666' }}>Deal intelligence for LinkedIn</div>
         </div>
       </div>

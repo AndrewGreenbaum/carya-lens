@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Carya Lens",
+  "name": "Carya LinkedIn Deal Lookup",
   "version": "1.0.0",
   "description": "Instant deal context overlay for LinkedIn profiles and companies",
   "permissions": [
@@ -24,7 +24,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Carya Lens",
+    "default_title": "Carya LinkedIn Deal Lookup",
     "default_icon": {
       "16": "assets/icon16.png",
       "32": "assets/icon32.png",
