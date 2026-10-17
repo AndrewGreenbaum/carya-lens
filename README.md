@@ -12,7 +12,7 @@ npm run verify
 npm run build
 ```
 
-Load the generated `dist/` directory through **Load unpacked** at `chrome://extensions`. Rebuild and reload the extension after changing its source. The build uses esbuild, React and TypeScript; `npm run dev` currently performs the same one-shot build.
+Load the generated `dist/` directory through **Load unpacked** at `chrome://extensions`. Rebuild and reload the extension after changing its source. The build uses esbuild, React and TypeScript with component styles; unused Plasmo and Tailwind/PostCSS tooling has been removed. `npm run dev` currently performs the same one-shot build.
 
 ## Configuration and behavior
 
